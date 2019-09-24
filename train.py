@@ -32,7 +32,7 @@ test_sentences = list(tweets.iloc[int(train_cut*len(tweets)):, 0])
 test_label = list(tweets.iloc[int(train_cut*len(tweets)):, 1])
 # pprint(train_sentences[:5])
 
-w2v_size = 100
+w2v_size = 300
 
 print('embedding pretrain...')
 if False:
@@ -92,11 +92,12 @@ model.compile(optimizer='adam', loss='mean_squared_error', metrics=['mae'])
 model.summary()
 
 def call_corr(epoch, logs):
-    train_corr = np.correlate(model.predict(x=X_train).flatten(), train_label)
-    test_corr = np.correlate(model.predict(x=X_test).flatten(), test_label)
-    print(f'train correlation : {test_corr} , test correlation : {test_corr}')
+    if not epoch % 10:
+        train_corr = np.correlate(model.predict(x=X_train).flatten(), train_label)
+        test_corr = np.correlate(model.predict(x=X_test).flatten(), test_label)
+        print(f'train correlation : {train_corr} , test correlation : {test_corr}')
 
-model.fit(X_train, train_label, validation_data=[X_test, test_label], epochs=60, batch_size=128, verbose=2, callbacks=[LambdaCallback(on_epoch_end=call_corr)])
+model.fit(X_train, train_label, validation_data=[X_test, test_label], epochs=100, batch_size=128, verbose=2, callbacks=[LambdaCallback(on_epoch_end=call_corr)])
 
 
 
