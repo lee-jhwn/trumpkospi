@@ -67,6 +67,7 @@ def get_image(sentence):
 
     return image
 
+
 def get_corr(x, y):
     return np.correlate(x, y)
 
@@ -79,6 +80,7 @@ X_test = [get_image(sentence) for sentence in test_sentences]
 X_train = np.stack(X_train, axis=0)
 X_test = np.stack(X_test, axis=0)
 
+
 model = Sequential()
 model.add(Embedding(input_dim=vocab_size, output_dim=w2v_size, mask_zero=True, weights=[pretrained_weights], trainable=False))
 model.add(Bidirectional(LSTM(units=128, return_sequences=False, dropout=0.3)))
@@ -89,7 +91,12 @@ model.add(Dense(units=1, activation='tanh'))
 model.compile(optimizer='adam', loss='mean_squared_error', metrics=['mae'])
 model.summary()
 
-model.fit(X_train, train_label, validation_data=[X_test, test_label], epochs=60, batch_size=128, verbose=2, callbacks=[LambdaCallback(on_epoch_end=on_epoch_end)])
+def call_corr(epoch, logs):
+    train_corr = np.correlate(model.predict(x=X_train).flatten(), train_label)
+    test_corr = np.correlate(model.predict(x=X_test).flatten(), test_label)
+    print(f'train correlation : {test_corr} , test correlation : {test_corr}')
+
+model.fit(X_train, train_label, validation_data=[X_test, test_label], epochs=60, batch_size=128, verbose=2, callbacks=[LambdaCallback(on_epoch_end=call_corr)])
 
 
 
