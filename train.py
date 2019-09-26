@@ -3,6 +3,7 @@ import pickle
 import tensorflow as tf
 import numpy as np
 from pprint import pprint
+from config import *
 
 from gensim.models import KeyedVectors, FastText, Word2Vec # 미리 훈련된 단어 벡터 읽기
 
@@ -32,18 +33,34 @@ test_sentences = list(tweets.iloc[int(train_cut*len(tweets)):, 0])
 test_label = list(tweets.iloc[int(train_cut*len(tweets)):, 1])
 # pprint(train_sentences[:5])
 
-w2v_size = 300
+# w2v_size = 300
 
-print('embedding pretrain...')
-if False:
-    w2v_model = FastText([['<dummy>']] + train_sentences + test_sentences, sg=1, min_count=1, sorted_vocab=False, size=w2v_size)
-    with open('embedding_pretrain.pkl', 'wb') as f:
-        pickle.dump(w2v_model, f)
-else:
-    with open('embedding_pretrain.pkl', 'rb') as f:
-        w2v_model = pickle.load(f)
+if which_embedding is None:
 
-# print(w2v_model.wv.vocab['<dummy>'].index) #dummy index 0인지 확인
+    print('embedding pretrain...')
+    if False:
+        w2v_model = FastText([['<dummy>']] + train_sentences + test_sentences, sg=1, min_count=1, sorted_vocab=False, size=w2v_size)
+        with open('embedding_pretrain.pkl', 'wb') as f:
+            pickle.dump(w2v_model, f)
+    else:
+        with open('embedding_pretrain.pkl', 'rb') as f:
+            w2v_model = pickle.load(f)
+elif which_embedding == 'Google_W2V':
+    FILENAME = "GoogleNews-vectors-negative300.bin.gz"
+    w2v_model = KeyedVectors.load_word2vec_format(FILENAME, binary=True, limit=30000)
+    corpus_vocab = set(word for sentence in train_sentences+test_sentences for word in sentence)
+    diff = list(corpus_vocab.difference(w2v_model.vocab))
+    print(f'lacking {len(diff)} words')
+    a = np.var(w2v_model.vectors)
+    w2v_model.add(entities=diff, weights=np.random.uniform(-a, -a, (len(diff), w2v_size)))
+
+
+
+# print(w2v_model.wv.index2word[0])
+# print(w2v_model.wv.vocab['</s>'].index) #dummy index 0인지 확인
+
+
+
 pretrained_weights = w2v_model.wv.vectors
 vocab_size = pretrained_weights.shape[0]
 print(f'단어 임베딩 형상: {pretrained_weights.shape}')
@@ -93,17 +110,15 @@ model.summary()
 
 def call_corr(epoch, logs):
     if not epoch % 10:
-        train_corr = np.correlate(model.predict(x=X_train).flatten(), train_label)
-        test_corr = np.correlate(model.predict(x=X_test).flatten(), test_label)
-        print(f'train correlation : {train_corr} , test correlation : {test_corr}')
+        train_corr = np.corrcoef(model.predict(x=X_train).flatten(), train_label)
+        test_corr = np.corrcoef(model.predict(x=X_test).flatten(), test_label)
+        print(f'train correlation : {train_corr[0][1]} , test correlation : {test_corr[0][1]}')
+
+    # train_bi_predict = model.predict(x=X_train).flatten() > 0
+    # test_bi_predict = model.predict(x=X_test).flatten() > 0
+    #
+    #
+    # train_bi_acc = mo
 
 model.fit(X_train, train_label, validation_data=[X_test, test_label], epochs=100, batch_size=128, verbose=2, callbacks=[LambdaCallback(on_epoch_end=call_corr)])
-
-
-
-
-
-
-# for i,v in data.iterrows():
-#     v['percent']
 
