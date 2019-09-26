@@ -10,7 +10,7 @@ from gensim.models import KeyedVectors, FastText, Word2Vec # 미리 훈련된 �
 from keras.models import Sequential
 from keras.layers import Embedding, SimpleRNN, Dropout, Dense, LSTM, Bidirectional, BatchNormalization
 from keras.callbacks import LambdaCallback
-from keras.optimizers import adam
+from keras.optimizers import Adam
 
 # from keras.models import Model
 # from keras.layers import Input, Conv1D, MaxPooling1D, Flatten, Concatenate, Dropout, Dense, LSTM
@@ -107,21 +107,27 @@ model.add(Dense(units=32, activation='tanh')) # unit, activation 바꿔보기
 model.add(BatchNormalization())
 # model.add(Dense(units=8, activation='elu')) # unit, activation 바꿔보기
 model.add(Dense(units=1, activation='tanh'))
-# adam = Adam(lr=0.001)
-model.compile(optimizer='adam', loss='mean_squared_error', metrics=['mae'])
+adam = Adam(lr=0.0001)
+model.compile(optimizer=adam, loss='mean_squared_error', metrics=['mae'])
 model.summary()
 
 def call_corr(epoch, logs):
+
+    train_predict = model.predict(x=X_train).flatten()
+    test_predict = model.predict(x=X_test).flatten()
+
     if not epoch % 10:
-        train_corr = np.corrcoef(model.predict(x=X_train).flatten(), train_label)
-        test_corr = np.corrcoef(model.predict(x=X_test).flatten(), test_label)
+        train_corr = np.corrcoef(train_predict, train_label)
+        test_corr = np.corrcoef(test_predict, test_label)
         print(f'train correlation : {train_corr[0][1]} , test correlation : {test_corr[0][1]}')
 
-    # train_bi_predict = model.predict(x=X_train).flatten() > 0
-    # test_bi_predict = model.predict(x=X_test).flatten() > 0
-    #
-    #
-    # train_bi_acc = mo
+    train_bi_predict = train_predict > 0
+    test_bi_predict = test_predict > 0
+
+    train_bi_acc = (train_bi_predict == (np.array(train_label)>0)).mean()
+    test_bi_acc = (test_bi_predict == (np.array(test_label)>0)).mean()
+
+    print(f'train acc: {train_bi_acc} - test acc: {test_bi_acc}')
 
 model.fit(X_train, train_label, validation_data=[X_test, test_label], epochs=100, batch_size=128, verbose=2, callbacks=[LambdaCallback(on_epoch_end=call_corr)])
 
