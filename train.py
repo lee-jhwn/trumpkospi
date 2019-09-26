@@ -8,8 +8,9 @@ from config import *
 from gensim.models import KeyedVectors, FastText, Word2Vec # 미리 훈련된 단어 벡터 읽기
 
 from keras.models import Sequential
-from keras.layers import Embedding, SimpleRNN, Dropout, Dense, LSTM, Bidirectional
+from keras.layers import Embedding, SimpleRNN, Dropout, Dense, LSTM, Bidirectional, BatchNormalization
 from keras.callbacks import LambdaCallback
+from keras.optimizers import adam
 
 # from keras.models import Model
 # from keras.layers import Input, Conv1D, MaxPooling1D, Flatten, Concatenate, Dropout, Dense, LSTM
@@ -26,7 +27,6 @@ except:
     with open('tweets.pkl', 'wb') as f:
         pickle.dump(tweets,f)
 
-train_cut = 0.8
 train_sentences = list(tweets.iloc[:int(train_cut*len(tweets)), 0])
 train_label = list(tweets.iloc[:int(train_cut*len(tweets)), 1])
 test_sentences = list(tweets.iloc[int(train_cut*len(tweets)):, 0])
@@ -47,7 +47,7 @@ if which_embedding is None:
             w2v_model = pickle.load(f)
 elif which_embedding == 'Google_W2V':
     FILENAME = "GoogleNews-vectors-negative300.bin.gz"
-    w2v_model = KeyedVectors.load_word2vec_format(FILENAME, binary=True, limit=30000)
+    w2v_model = KeyedVectors.load_word2vec_format(FILENAME, binary=True, limit=300000)
     corpus_vocab = set(word for sentence in train_sentences+test_sentences for word in sentence)
     diff = list(corpus_vocab.difference(w2v_model.vocab))
     print(f'lacking {len(diff)} words')
@@ -101,10 +101,13 @@ X_test = np.stack(X_test, axis=0)
 model = Sequential()
 model.add(Embedding(input_dim=vocab_size, output_dim=w2v_size, mask_zero=True, weights=[pretrained_weights], trainable=False))
 model.add(Bidirectional(LSTM(units=128, return_sequences=False, dropout=0.3)))
+model.add(BatchNormalization())
 # model.add(LSTM(units=128, return_sequences=False, dropout=0.5))
 model.add(Dense(units=32, activation='tanh')) # unit, activation 바꿔보기
+model.add(BatchNormalization())
 # model.add(Dense(units=8, activation='elu')) # unit, activation 바꿔보기
 model.add(Dense(units=1, activation='tanh'))
+# adam = Adam(lr=0.001)
 model.compile(optimizer='adam', loss='mean_squared_error', metrics=['mae'])
 model.summary()
 
