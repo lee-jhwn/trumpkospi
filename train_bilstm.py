@@ -47,7 +47,7 @@ if which_embedding is None:
         with open('embedding_pretrain.pkl', 'rb') as f:
             w2v_model = pickle.load(f)
 elif which_embedding == 'Google_W2V':
-    if True:
+    if False:
         print('loading google news word2vec...')
         FILENAME = "GoogleNews-vectors-negative300.bin.gz"
         w2v_model = KeyedVectors.load_word2vec_format(FILENAME, binary=True, limit=500000)

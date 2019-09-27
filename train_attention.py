@@ -7,11 +7,14 @@ from config import *
 
 from gensim.models import KeyedVectors, FastText, Word2Vec # 미리 훈련된 단어 벡터 읽기
 
-from keras.models import Sequential
-from keras.layers import Embedding, SimpleRNN, Dropout, Dense, LSTM, Bidirectional, BatchNormalization
+from keras.models import Sequential, Model
+from keras.layers import Embedding, Input, Dense, LSTM, Bidirectional, BatchNormalization, Concatenate
 from keras.callbacks import LambdaCallback
 from keras.optimizers import Adam
+from keras_attention.models import AttentionWeightedAverage
 
+# from attention_layer import Attention
+# from attention_layer.layers.attention import AttentionLayer
 # from keras.models import Model
 # from keras.layers import Input, Conv1D, MaxPooling1D, Flatten, Concatenate, Dropout, Dense, LSTM
 from keras.constraints import max_norm
@@ -32,6 +35,7 @@ train_label = list(tweets.iloc[:int(train_cut*len(tweets)), 1])
 test_sentences = list(tweets.iloc[int(train_cut*len(tweets)):, 0])
 test_label = list(tweets.iloc[int(train_cut*len(tweets)):, 1])
 # pprint(train_sentences[:5])
+del tweets
 
 # w2v_size = 300
 
@@ -46,17 +50,30 @@ if which_embedding is None:
         with open('embedding_pretrain.pkl', 'rb') as f:
             w2v_model = pickle.load(f)
 elif which_embedding == 'Google_W2V':
-    FILENAME = "GoogleNews-vectors-negative300.bin.gz"
-    w2v_model = KeyedVectors.load_word2vec_format(FILENAME, binary=True, limit=300000)
-    corpus_vocab = set(word for sentence in train_sentences+test_sentences for word in sentence)
-    diff = list(corpus_vocab.difference(w2v_model.vocab))
-    print(f'lacking {len(diff)} words')
-    a = np.var(w2v_model.vectors)
-    w2v_model.add(entities=diff, weights=np.random.uniform(-a, -a, (len(diff), w2v_size)))
+    if False:
+        print('loading google news word2vec...')
+        FILENAME = "GoogleNews-vectors-negative300.bin.gz"
+        w2v_model = KeyedVectors.load_word2vec_format(FILENAME, binary=True, limit=500000)
+        corpus_vocab = set(word for sentence in train_sentences+test_sentences for word in sentence)
+        diff = list(corpus_vocab.difference(w2v_model.vocab))
+        print(len(corpus_vocab))
+        print(f'lacking {len(diff)} words')
+        a = np.var(w2v_model.vectors)
+        w2v_model.add(entities=diff, weights=np.random.uniform(-a, -a, (len(diff), w2v_size)))
+        del corpus_vocab
+        del a
+
+        with open('w2v_google.pkl', 'wb') as f:
+            pickle.dump(w2v_model, f)
+
+    else:
+        print('loading saved google news word2vec...')
+        with open('w2v_google.pkl', 'rb') as f:
+            w2v_model = pickle.load(f)
 
 
 
-# print(w2v_model.wv.index2word[0])
+print(w2v_model.wv.index2word[0])
 # print(w2v_model.wv.vocab['</s>'].index) #dummy index 0인지 확인
 
 
@@ -97,16 +114,37 @@ X_test = [get_image(sentence) for sentence in test_sentences]
 X_train = np.stack(X_train, axis=0)
 X_test = np.stack(X_test, axis=0)
 
+del w2v_model
 
-model = Sequential()
-model.add(Embedding(input_dim=vocab_size, output_dim=w2v_size, mask_zero=True, weights=[pretrained_weights], trainable=False))
-model.add(Bidirectional(LSTM(units=128, return_sequences=False, dropout=0.3)))
-model.add(BatchNormalization())
-# model.add(LSTM(units=128, return_sequences=False, dropout=0.5))
-model.add(Dense(units=32, activation='tanh')) # unit, activation 바꿔보기
-model.add(BatchNormalization())
-# model.add(Dense(units=8, activation='elu')) # unit, activation 바꿔보기
-model.add(Dense(units=1, activation='tanh'))
+# model = Sequential()
+input = Input(shape=(max_length,))
+embedding = Embedding(input_dim=vocab_size, output_dim=w2v_size, mask_zero=True, weights=[pretrained_weights], trainable=False)(input)
+# model.add(Embedding(input_dim=vocab_size, output_dim=w2v_size, mask_zero=True, weights=[pretrained_weights], trainable=False))
+# lstm, forward_h, forward_c, backward_h, backward_c = Bidirectional(LSTM(units=128, return_sequences=True, dropout=0.3, return_state=True))(embedding)
+bilstm = Bidirectional(LSTM(units=128, return_sequences=True, dropout=0.3, return_state=False))(embedding)
+# state_h = Concatenate()([forward_h, backward_h])
+# state_c = Concatenate()([forward_c, backward_c])
+
+context_vector, attn = AttentionWeightedAverage(return_attention=True)(bilstm)
+
+
+# attention = Attention(8)
+# attention = AttentionLayer()
+# context_vector, attention_weights = attention(lstm, state_h)
+
+dense = Dense(units=32, activation='tanh')(context_vector)
+dense = BatchNormalization()(dense)
+output = Dense(units=1, activation='tanh')(dense)
+
+model = Model(inputs=input, outputs=output)
+# model.add(context_vector)
+# model.add(Bidirectional(LSTM(units=128, return_sequences=False, dropout=0.3)))
+# model.add(BatchNormalization())
+# # model.add(LSTM(units=128, return_sequences=False, dropout=0.5))
+# model.add(Dense(units=32, activation='tanh')) # unit, activation 바꿔보기
+# model.add(BatchNormalization())
+# # model.add(Dense(units=8, activation='elu')) # unit, activation 바꿔보기
+# model.add(Dense(units=1, activation='tanh'))
 adam = Adam(lr=0.0001)
 model.compile(optimizer=adam, loss='mean_squared_error', metrics=['mae'])
 model.summary()
@@ -116,10 +154,10 @@ def call_corr(epoch, logs):
     train_predict = model.predict(x=X_train).flatten()
     test_predict = model.predict(x=X_test).flatten()
 
-    if not epoch % 10:
-        train_corr = np.corrcoef(train_predict, train_label)
-        test_corr = np.corrcoef(test_predict, test_label)
-        print(f'train correlation : {train_corr[0][1]} , test correlation : {test_corr[0][1]}')
+    # if not epoch % 10:
+    train_corr = np.corrcoef(train_predict, train_label)
+    test_corr = np.corrcoef(test_predict, test_label)
+    print(f'train correlation : {train_corr[0][1]} , test correlation : {test_corr[0][1]}')
 
     train_bi_predict = train_predict > 0
     test_bi_predict = test_predict > 0
