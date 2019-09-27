@@ -146,7 +146,8 @@ model = Model(inputs=input, outputs=output)
 # # model.add(Dense(units=8, activation='elu')) # unit, activation 바꿔보기
 # model.add(Dense(units=1, activation='tanh'))
 adam = Adam(lr=0.0001)
-model.compile(optimizer=adam, loss='mean_squared_error', metrics=['mae'])
+model.compile\
+    (optimizer=adam, loss='mean_squared_error', metrics=['mae'])
 model.summary()
 
 def call_corr(epoch, logs):
