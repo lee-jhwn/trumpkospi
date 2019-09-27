@@ -131,7 +131,7 @@ context_vector, attn = AttentionWeightedAverage(return_attention=True)(bilstm)
 # attention = Attention(8)
 # attention = AttentionLayer()
 # context_vector, attention_weights = attention(lstm, state_h)
-
+dense = BatchNormalization()(context_vector)
 dense = Dense(units=32, activation='tanh')(context_vector)
 dense = BatchNormalization()(dense)
 output = Dense(units=1, activation='tanh')(dense)
@@ -166,6 +166,7 @@ def call_corr(epoch, logs):
     test_bi_acc = (test_bi_predict == (np.array(test_label)>0)).mean()
 
     print(f'train acc: {train_bi_acc} - test acc: {test_bi_acc}')
+    print()
 
 model.fit(X_train, train_label, validation_data=[X_test, test_label], epochs=100, batch_size=128, verbose=2, callbacks=[LambdaCallback(on_epoch_end=call_corr)])
 
