@@ -13,6 +13,11 @@ from keras.callbacks import LambdaCallback
 from keras.optimizers import Adam
 from keras_attention.models import AttentionWeightedAverage
 
+# from attention_layer import Attention
+# from attention_layer.layers.attention import AttentionLayer
+# from keras.models import Model
+# from keras.layers import Input, Conv1D, MaxPooling1D, Flatten, Concatenate, Dropout, Dense, LSTM
+from keras.constraints import max_norm
 
 try:
     with open('tweets.pkl', 'rb') as f:
