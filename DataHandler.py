@@ -5,7 +5,7 @@ from kospi_preprocess import kospi_data
 import re
 import os
 import pickle
-from gensim.models import KeyedVectors
+# from gensim.models import KeyedVectors
 from nltk import word_tokenize
 
 

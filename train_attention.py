@@ -1,6 +1,6 @@
 from DataHandler import get_tweets
 import pickle
-import tensorflow as tf
+# import tensorflow as tf
 import numpy as np
 from pprint import pprint
 from config import *
@@ -12,6 +12,11 @@ from keras.layers import Embedding, Input, Dense, LSTM, Bidirectional, BatchNorm
 from keras.callbacks import LambdaCallback
 from keras.optimizers import Adam
 from keras_attention.models import AttentionWeightedAverage
+from keras.utils.training_utils import multi_gpu_model
+from keras import backend as K
+import heapq as hp
+
+K.tensorflow_backend._get_available_gpus()
 
 
 try:
@@ -46,20 +51,21 @@ if which_embedding is None:
             w2v_model = pickle.load(f)
 elif which_embedding == 'Google_W2V':
     if False:
-        print('loading google news word2vec...')
+        print('creating google news word2vec...')
         FILENAME = "GoogleNews-vectors-negative300.bin.gz"
-        w2v_model = KeyedVectors.load_word2vec_format(FILENAME, binary=True, limit=500000)
+        w2v_model = KeyedVectors.load_word2vec_format(FILENAME, binary=True, limit=3000000)
         corpus_vocab = set(word for sentence in train_sentences+test_sentences for word in sentence)
         diff = list(corpus_vocab.difference(w2v_model.vocab))
         print(len(corpus_vocab))
         print(f'lacking {len(diff)} words')
         a = np.var(w2v_model.vectors)
+        print('dumping w2v...')
         w2v_model.add(entities=diff, weights=np.random.uniform(-a, -a, (len(diff), w2v_size)))
         del corpus_vocab
         del a
 
         with open('w2v_google.pkl', 'wb') as f:
-            pickle.dump(w2v_model, f)
+            pickle.dump(w2v_model, f, protocol=4)
 
     else:
         print('loading saved google news word2vec...')
@@ -132,6 +138,7 @@ dense = BatchNormalization()(dense)
 output = Dense(units=1, activation='tanh')(dense)
 
 model = Model(inputs=input, outputs=output)
+# model = multi_gpu_model(model, gpus=2)
 # model.add(context_vector)
 # model.add(Bidirectional(LSTM(units=128, return_sequences=False, dropout=0.3)))
 # model.add(BatchNormalization())
@@ -163,5 +170,8 @@ def call_corr(epoch, logs):
     print(f'train acc: {train_bi_acc} - test acc: {test_bi_acc}')
     print()
 
-model.fit(X_train, train_label, validation_data=[X_test, test_label], epochs=100, batch_size=128, verbose=2, callbacks=[LambdaCallback(on_epoch_end=call_corr)])
+    # print(X_train[hp.nlargest(5, train_predict, train_predict.__getitem__)])
+    # print(X_test[hp.nlargest(5, test_predict, test_predict.__getitem__)])
+
+hist = model.fit(X_train, train_label, validation_data=[X_test, test_label], epochs=100, batch_size=128, verbose=2, callbacks=[LambdaCallback(on_epoch_end=call_corr)])
 

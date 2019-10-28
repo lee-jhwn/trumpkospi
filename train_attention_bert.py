@@ -1,11 +1,11 @@
 from DataHandler import get_tweets
 import pickle
-import tensorflow as tf
+# import tensorflow as tf
 import numpy as np
 from pprint import pprint
 from config import *
 
-from gensim.models import KeyedVectors, FastText, Word2Vec # 미리 훈련된 단어 벡터 읽기
+# from gensim.models import KeyedVectors, FastText, Word2Vec # 미리 훈련된 단어 벡터 읽기
 
 from keras.models import Sequential, Model
 from keras.layers import Embedding, Input, Dense, LSTM, Bidirectional, BatchNormalization, Concatenate
