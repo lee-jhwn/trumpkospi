@@ -6,7 +6,12 @@ import re
 import os
 import pickle
 # from gensim.models import KeyedVectors
+import nltk
+nltk.download('punkt')
 from nltk import word_tokenize
+from config import *
+
+from keras_bert import *
 
 
 # http://www.trumptwitterarchive.com/
@@ -20,7 +25,7 @@ def set_seoul_time(t):
 
     t = t[4:19] + t[25:]
     t = datetime.strptime(t, '%b %d %H:%M:%S %Y') + timedelta(hours=9)
-    if t.time() < time(hour=15,minute=0,second=0): # tweets after 3pm -> consider next day
+    if t.time() < time(hour=15,minute=30,second=0): # tweets after 3pm -> consider next day
         t = t.date()
     else:
         t = t + timedelta(days=1)
@@ -50,8 +55,10 @@ def get_tweets():
     tweets = tweets.drop(columns=['is_retweet'])
 
     print('setting to seoul time, GMT +9 ...')
+
     for i,v in tweets.iterrows():
         v['created_at'] = set_seoul_time(v['created_at'])
+        v['text'] = re.sub(r'https?://\S+', '', v['text'])
         v['text'] = word_tokenize((v['text'].lower()))
 
     tweets = tweets.sort_values(['created_at'])
@@ -77,6 +84,7 @@ def get_tweets():
 if __name__=='__main__':
 
     tweets = get_tweets()
+
     with open('tweets.pkl', 'wb') as f:
         pickle.dump(tweets,f)
 

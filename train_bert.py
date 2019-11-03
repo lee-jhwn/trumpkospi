@@ -10,7 +10,7 @@ import codecs
 from gensim.models import KeyedVectors, FastText, Word2Vec # 미리 훈련된 단어 벡터 읽기
 
 from keras.models import Sequential, Model
-from keras.layers import Embedding, Input, Dense, LSTM, Bidirectional, BatchNormalization, Concatenate
+from keras.layers import Embedding, Input, Dense, LSTM, Bidirectional, BatchNormalization, Concatenate, Flatten, Masking, Permute
 from keras.callbacks import LambdaCallback
 from keras.optimizers import Adam
 from keras_attention.models import AttentionWeightedAverage
@@ -113,103 +113,144 @@ def get_corr(x, y):
 # print(len(train_sentences))
 # print(len(test_sentences))
 
-if which_embedding == 'Google_W2V':
+# if which_embedding == 'Google_W2V':
+#
+#     X_train = [get_image(sentence) for sentence in train_sentences]
+#     X_test = [get_image(sentence) for sentence in test_sentences]
+#     X_train = np.stack(X_train, axis=0)
+#     X_test = np.stack(X_test, axis=0)
+#
+#     print(len(pretrained_weights))
+#
+#     del w2v_model
 
-    X_train = [get_image(sentence) for sentence in train_sentences]
-    X_test = [get_image(sentence) for sentence in test_sentences]
-    X_train = np.stack(X_train, axis=0)
-    X_test = np.stack(X_test, axis=0)
+#
+# def get_word(idx):
+#     return [key for key,value in token_dict.items() if value == idx][0]
+#
+# if which_embedding == 'BERT':
 
-    print(len(pretrained_weights))
-
-    del w2v_model
-
-
-def get_word(idx):
-    return [key for key,value in token_dict.items() if value == idx][0]
-
-if which_embedding == 'BERT':
-
-    try:
-        with open('bert_token_dict.pkl', 'rb') as f:
-            token_dict = pickle.load(f)
-    except:
-        token_dict = {}
-        with codecs.open('uncased_L-12_H-768_A-12/vocab.txt', 'r', 'utf8') as reader:
-            for line in reader:
-                token = line.strip()
-                token_dict[token] = len(token_dict)
-        with open('bert_token_dict.pkl', 'wb') as f:
-            pickle.dump(token_dict, f)
+    # try:
+    #     with open('bert_token_dict.pkl', 'rb') as f:
+    #         token_dict = pickle.load(f)
+    # except:
+    #     token_dict = {}
+    #     with codecs.open('uncased_L-12_H-768_A-12/vocab.txt', 'r', 'utf8') as reader:
+    #         for line in reader:
+    #             token = line.strip()
+    #             token_dict[token] = len(token_dict)
+    #     with open('bert_token_dict.pkl', 'wb') as f:
+    #         pickle.dump(token_dict, f)
 
     # with codecs.open('uncased_L-12_H-768_A-12/vocab.txt', 'r', 'utf8') as reader:
     #     vocab = [line.strip() for line in reader]
 
 
-    tokenizer = Tokenizer(token_dict)
-    tokens = [tokenizer.tokenize(" ".join(sentence)) for sentence in train_sentences + test_sentences]
-    maxlen = max([len(sentence) for sentence in tokens])
-    for i,sentence in enumerate(tokens):
-        while len(tokens[i]) < maxlen:
-            tokens[i].append('[PAD]')
+    # tokenizer = Tokenizer(token_dict)
+    # tokens = [tokenizer.tokenize(" ".join(sentence)) for sentence in train_sentences + test_sentences]
+    # maxlen = max([len(sentence) for sentence in tokens])
+    # for i,sentence in enumerate(tokens):
+    #     while len(tokens[i]) < maxlen:
+    #         tokens[i].append('[PAD]')
 
     # print(os.getcwd())
     # print(len(tokens[5]))
-    print('maxlen_bert :', maxlen)
+    # print('maxlen_bert :', maxlen)
     # indices, segments = tokenizer.encode(first=' '.join(test_sentences[0]), max_len=maxlen)
     # print(indices)
     # print(" ".join(get_word(w) for w in indices))
     # for w in indices:
     #     print
-    X_train = [tokenizer.encode(first=' '.join(sentence), max_len=maxlen)[0] for sentence in train_sentences]
-    X_test = [tokenizer.encode(first=' '.join(sentence), max_len=maxlen)[0] for sentence in test_sentences]
-    X_train = np.stack(X_train, axis=0)
-    X_test = np.stack(X_test, axis=0)
-    print(X_test)
+    # X_train = [tokenizer.encode(first=' '.join(sentence), max_len=maxlen)[0] for sentence in train_sentences]
+    # X_test = [tokenizer.encode(first=' '.join(sentence), max_len=maxlen)[0] for sentence in test_sentences]
+    # X_train = np.stack(X_train, axis=0)
+    # X_test = np.stack(X_test, axis=0)
+    # print(X_test)
 
     # texts = [get_word(idx) for idx in range(len(token_dict))]
     # print(vocab)
 
-    try:
-        with open('bert_embedding_sent.pkl', 'rb') as f:
-            print('loading existing bert embedding...')
-            bert_embedding = pickle.load(f)
-            print('loaded')
-    except:
-        print('loading bert embedding')
-        bert_embedding = extract_embeddings('uncased_L-12_H-768_A-12', [" ".join(sentence) for sentence in tokens])
-        # bert_embedding = extract_embeddings('uncased_L-12_H-768_A-12', vocab)
-        with open('bert_embedding_sent.pkl', 'wb') as f:
-            pickle.dump(bert_embedding, f)
+try:
+    with open('bert_embedding_sent.pkl', 'rb') as f:
+        print('loading existing bert embedding...')
+        bert_embedding = pickle.load(f)
+        print('loaded')
+except:
+    print('loading bert embedding')
+    bert_embedding = extract_embeddings('uncased_L-12_H-768_A-12', [" ".join(sentence) for sentence in train_sentences + test_sentences])
+    # bert_embedding = extract_embeddings('uncased_L-12_H-768_A-12', vocab)
+    # bert_embedding = extract_embeddings('uncased_L-12_H-768_A-12', ["[PAD]"])
+    #
+    maxlen = max([len(sentence) for sentence in bert_embedding])
+    print(maxlen)
+    for i, sentence in enumerate(bert_embedding):
+        while len(bert_embedding[i]) < maxlen:
+            bert_embedding[i] = np.append(bert_embedding[i], [np.zeros(768)], axis=0)
+
+    with open('bert_embedding_sent.pkl', 'wb') as f:
+        pickle.dump(bert_embedding, f)
         print('loaded and saved as a pickle')
+    # pad_emd = extract_embeddings('uncased_L-12_H-768_A-12', [" [PAD] "])
+    # print(len(pad_emd))
 
-    X_train = bert_embedding[:len(train_sentences)]
-    X_test = bert_embedding[len(train_sentences):]
-    print(X_test[:5])
-    X_train = np.stack(X_train, axis=0)
-    X_test = np.stack(X_test, axis=0)
-    print(X_test)
+maxlen = max([len(sentence) for sentence in bert_embedding])
+print(maxlen)
+# for i,sentence in enumerate(bert_embedding):
+#     while len(bert_embedding[i]) < maxlen:
+#         bert_embedding[i] = np.append(bert_embedding[i], [np.zeros(768)], axis=0)
+#     # print(len(bert_embedding[i]))
+
+X_train = bert_embedding[:len(train_sentences)]
+X_test = bert_embedding[len(train_sentences):]
+
+
+
+# print(X_train[:5])
+X_train = np.stack(X_train, axis=0)
+X_test = np.stack(X_test, axis=0)
+# print(X_train.shape)
+
+print(X_train.shape)
 
 
 
 
-input = Input(shape=(max_length,))
+input = Input(shape=(maxlen,768, ))
 
-if mode == 'BERT':
-    embedding = Embedding(input_dim=len(token_dict), output_dim=w2v_size, mask_zero=True, weights=[pretrained_weights], trainable=False)(input)
+# if mode == 'BERT':
+#     pass
+#     # embedding = Embedding(input_dim=len(token_dict), output_dim=w2v_size, mask_zero=True, weights=[pretrained_weights], trainable=False)(input)
+#
+# elif mode == 'attention':
+# embedding = Embedding(input_dim=vocab_size, output_dim=w2v_size, mask_zero=True, weights=[pretrained_weights],
+#                           trainable=False)(input)
 
-elif mode == 'attention':
-    embedding = Embedding(input_dim=vocab_size, output_dim=w2v_size, mask_zero=True, weights=[pretrained_weights],
-                          trainable=False)(input)
+# bilstm = Bidirectional(LSTM(units=128, return_sequences=True, dropout=0.3, return_state=False))(input)
+# context_vector, attn = AttentionWeightedAverage(return_attention=True)(bilstm)
+# dense = BatchNormalization()(context_vector)
+# masking = Masking(mask_value=0.0)(input)
+dense = Dense(units=768, activation='tanh')(input)
+dense = BatchNormalization()(dense)
+dense = Dense(units=512, activation='tanh')(dense)
+dense = BatchNormalization()(dense)
+dense = Dense(units=256, activation='tanh')(dense)
+dense = Permute((2,1))(dense)
+dense = Dense(units=64, activation='tanh')(dense)
+dense = BatchNormalization()(dense)
+dense = Dense(units=32, activation='tanh')(dense)
+dense = BatchNormalization()(dense)
+dense = Permute((2,1))(dense)
+dense = Dense(units=64, activation='tanh')(dense)
+dense = BatchNormalization()(dense)
+dense = Dense(units=16, activation='tanh')(dense)
+dense = Flatten()(dense)
+dense = BatchNormalization()(dense)
+dense = Dense(units=16, activation='tanh')(dense)
+dense = BatchNormalization()(dense)
+output = Dense(units=1, activation='tanh')(dense)
 
-    bilstm = Bidirectional(LSTM(units=128, return_sequences=True, dropout=0.3, return_state=False))(embedding)
-    context_vector, attn = AttentionWeightedAverage(return_attention=True)(bilstm)
-    dense = BatchNormalization()(context_vector)
-    dense = Dense(units=32, activation='tanh')(context_vector)
-    dense = BatchNormalization()(dense)
-    output = Dense(units=1, activation='tanh')(dense)
-    model = Model(inputs=input, outputs=output)
-
+model = Model(inputs=input, outputs=output)
+# model.add(Masking(mask_value=0.))
 
 adam = Adam(lr=0.0001)
 model.compile(optimizer=adam, loss='mean_squared_error', metrics=['mae'])
