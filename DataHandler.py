@@ -88,7 +88,10 @@ if __name__=='__main__':
     with open('tweets.pkl', 'wb') as f:
         pickle.dump(tweets,f)
 
-    print(tweets)
+    print(len(tweets))
+    print(tweets.iloc[7]['text'])
+    print(tweets.iloc[7]['percent'])
+
 
 
     # print(kospi_data)
