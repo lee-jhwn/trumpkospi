@@ -126,6 +126,9 @@ adam = Adam(lr=0.0001)
 model.compile(optimizer=adam, loss='mean_squared_error', metrics=['mae'])
 model.summary()
 
+train_corr_list = []
+test_corr_list = []
+
 def call_corr(epoch, logs):
 
     train_predict = model.predict(x=X_train).flatten()
@@ -135,14 +138,21 @@ def call_corr(epoch, logs):
     train_corr = np.corrcoef(train_predict, train_label)
     test_corr = np.corrcoef(test_predict, test_label)
     print(f'train correlation : {train_corr[0][1]} , test correlation : {test_corr[0][1]}')
+    train_corr_list.append(train_corr[0][1])
+    test_corr_list.append(test_corr[0][1])
 
-    train_bi_predict = train_predict > 0
-    test_bi_predict = test_predict > 0
+    # train_bi_predict = train_predict > 0
+    # test_bi_predict = test_predict > 0
 
-    train_bi_acc = (train_bi_predict == (np.array(train_label)>0)).mean()
-    test_bi_acc = (test_bi_predict == (np.array(test_label)>0)).mean()
+    # train_bi_acc = (train_bi_predict == (np.array(train_label)>0)).mean()
+    # test_bi_acc = (test_bi_predict == (np.array(test_label)>0)).mean()
+    #
+    # print(f'train acc: {train_bi_acc} - test acc: {test_bi_acc}')
 
-    print(f'train acc: {train_bi_acc} - test acc: {test_bi_acc}')
+history = model.fit(X_train, train_label, validation_data=[X_test, test_label], epochs=100, batch_size=128, verbose=2, callbacks=[LambdaCallback(on_epoch_end=call_corr)])
 
-model.fit(X_train, train_label, validation_data=[X_test, test_label], epochs=100, batch_size=128, verbose=2, callbacks=[LambdaCallback(on_epoch_end=call_corr)])
+history.history['train_corr'] = train_corr_list
+history.history['test_corr'] = test_corr_list
 
+with open('bilstm_history.pkl', 'wb') as f:
+    pickle.dump(history.history, f)

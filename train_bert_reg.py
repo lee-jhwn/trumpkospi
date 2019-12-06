@@ -27,7 +27,7 @@ K.tensorflow_backend._get_available_gpus()
 SEQ_LEN = 128
 BATCH_SIZE = 128
 EPOCHS = 5
-LR = 1e-4
+LR = 1e-2
 
 pretrained_path = 'uncased_L-12_H-768_A-12'
 config_path = os.path.join(pretrained_path, 'bert_config.json')
@@ -106,16 +106,23 @@ model = load_trained_model_from_checkpoint(
     checkpoint_path,
     training=True,
     trainable=False,
-    seq_len=maxlen,
+    seq_len=maxlen
 )
 
 
 inputs = model.inputs[:2]
 print(inputs)
 dense = model.get_layer('NSP-Dense').output
-dense = Dense(units=128, activation='tanh')(dense)
+print(dense)
+# dense = BatchNormalization(dense)
+dense = Dense(units=512, activation='relu')(dense)
+dense = Dense(units=256, activation='relu')(dense)
+# dense = BatchNormalization(dense)
+dense = Dense(units=64, activation='relu')(dense)
+# dense = BatchNormalization(dense)
 outputs = Dense(units=1, activation='tanh')(dense)
 model = Model(inputs, outputs)
+model = multi_gpu_model(model, gpus=2)
 model.compile(RAdam(lr=LR),loss='mean_squared_error', metrics=['mae'])
 # model.summary()
 
@@ -271,6 +278,8 @@ def get_corr(x, y):
 # model.compile(optimizer=adam, loss='mean_squared_error', metrics=['mae'])
 model.summary()
 
+train_corr_list = []
+test_corr_list = []
 def call_corr(epoch, logs):
 
     train_predict = model.predict(x=X_train).flatten()
@@ -280,26 +289,32 @@ def call_corr(epoch, logs):
     train_corr = np.corrcoef(train_predict, train_label)
     test_corr = np.corrcoef(test_predict, test_label)
     print(f'train correlation : {train_corr[0][1]} , test correlation : {test_corr[0][1]}')
+    train_corr_list.append(train_corr[0][1])
+    test_corr_list.append(test_corr[0][1])
 
-    train_bi_predict = train_predict > 0
-    test_bi_predict = test_predict > 0
+    # train_bi_predict = train_predict > 0
+    # test_bi_predict = test_predict > 0
 
-    train_bi_acc = (train_bi_predict == (np.array(train_label)>0)).mean()
-    test_bi_acc = (test_bi_predict == (np.array(test_label)>0)).mean()
+    # train_bi_acc = (train_bi_predict == (np.array(train_label)>0)).mean()
+    # test_bi_acc = (test_bi_predict == (np.array(test_label)>0)).mean()
+    #
+    # print(f'train acc: {train_bi_acc} - test acc: {test_bi_acc}')
+    # print()
+    # if epoch > 10 and not epoch % 5:
+    #     # print('-----------train high examples---------')
+    #     # for i,v in enumerate(heapq.nlargest(5, range(len(train_predict)), train_predict.take)):
+    #     #     print(" ".join(train_sentences[i]))
+    #     # print(train_sentences[heapq.nlargest(5, range(len(train_predict)), train_predict.take)])
+    #     print('-----------test high examaples---------')
+    #     for i in heapq.nlargest(5, range(len(test_predict)), test_predict.take):
+    #         print(" ".join(test_sentences[i]))
+    #     print('-----------test low examples----------')
+    #     for i in heapq.nsmallest(5, range(len(test_predict)), test_predict.take):
+    #         print(" ".join(test_sentences[i]))
+history = model.fit(X_train, train_label, validation_data=[X_test, test_label], epochs=100, batch_size=BATCH_SIZE, verbose=2, callbacks=[LambdaCallback(on_epoch_end=call_corr)])
 
-    print(f'train acc: {train_bi_acc} - test acc: {test_bi_acc}')
-    print()
-    if epoch > 10 and not epoch % 5:
-        # print('-----------train high examples---------')
-        # for i,v in enumerate(heapq.nlargest(5, range(len(train_predict)), train_predict.take)):
-        #     print(" ".join(train_sentences[i]))
-        # print(train_sentences[heapq.nlargest(5, range(len(train_predict)), train_predict.take)])
-        print('-----------test high examaples---------')
-        for i in heapq.nlargest(5, range(len(test_predict)), test_predict.take):
-            print(" ".join(test_sentences[i]))
-        print('-----------test low examples----------')
-        for i in heapq.nsmallest(5, range(len(test_predict)), test_predict.take):
-            print(" ".join(test_sentences[i]))
+history.history['train_corr'] = train_corr_list
+history.history['test_corr'] = test_corr_list
 
-hist = model.fit(X_train, train_label, validation_data=[X_test, test_label], epochs=100, batch_size=BATCH_SIZE, verbose=2, callbacks=[LambdaCallback(on_epoch_end=call_corr)])
-
+with open('bert_finetuning.pkl', 'wb') as f:
+    pickle.dump(history.history, f)
